@@ -1,8 +1,8 @@
-package com.booking;
+package com.booking.model;
 
 public class Ticket {
 
-    private String pnrNumber; // Unique ID for the ticket
+    private String pnrNumber; 
     private User passenger;
     private Train train;
     private Seat seat;

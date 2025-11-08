@@ -1,4 +1,6 @@
-package com.booking;
+package com.booking.service;
+
+import com.booking.model.User;
 
 /**
  * Authentication provider abstraction.
@@ -17,4 +19,11 @@ public interface AuthProvider {
      * @return User on success or null on failure
      */
     User login(String username, String password);
+
+    /**
+     * Record a logout event for the given username (optional implementation).
+     */
+    default void recordLogout(String username) {
+        // no-op default
+    }
 }

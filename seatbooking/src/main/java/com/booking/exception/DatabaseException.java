@@ -1,4 +1,4 @@
-package com.booking;
+package com.booking.exception;
 
 /**
  * Runtime exception to indicate database-related errors.

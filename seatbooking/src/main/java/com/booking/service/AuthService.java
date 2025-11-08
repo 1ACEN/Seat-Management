@@ -1,4 +1,9 @@
-package com.booking;
+package com.booking.service;
+
+import com.booking.model.User;
+import com.booking.model.Role;
+import com.booking.exception.DatabaseException;
+import com.booking.exception.AuthException;
 
 import java.sql.Connection;
 import java.sql.PreparedStatement;
@@ -9,10 +14,6 @@ import java.util.logging.Logger;
 
 /**
  * AuthService backed by a MySQL database (users table).
- *
- * Notes:
- * - Passwords are stored in plaintext for simplicity (keep as-is to match existing design).
- * - In production, always store salted hashes.
  */
 public class AuthService implements AuthProvider {
 
@@ -22,7 +23,6 @@ public class AuthService implements AuthProvider {
 
     public AuthService(DatabaseProvider db) {
         this.db = db;
-        // Initialize DB schema and ensure default admin exists
         try {
             this.db.init();
         } catch (DatabaseException e) {
@@ -42,7 +42,6 @@ public class AuthService implements AuthProvider {
                 }
             }
         } catch (DatabaseException | SQLException e) {
-            // If another process created it concurrently, ignore duplicate key otherwise log
             String msg = e.getMessage() != null ? e.getMessage().toLowerCase() : "";
             if (!msg.contains("duplicate") && !msg.contains("unique")) {
                 LOGGER.log(Level.SEVERE, "Failed to ensure default admin user", e);
@@ -51,11 +50,9 @@ public class AuthService implements AuthProvider {
         }
     }
 
-    /**
-     * Checks if a user with this username already exists.
-     * @param username The username to check.
-     * @return The User object if found, null otherwise.
-     */
+    // We no longer record login/logout into user_history. Booking history is written
+    // by BookingService (BOOK/CANCEL events). Keeping AuthService focused on auth.
+
     private User findUserByUsername(String username) {
         String sql = "SELECT username, password, role FROM users WHERE username = ?";
         try (Connection c = this.db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
@@ -75,12 +72,6 @@ public class AuthService implements AuthProvider {
         return null;
     }
 
-    /**
-     * Registers a new user (as a PASSENGER only).
-     * @param username The desired username.
-     * @param password The desired password.
-     * @return true if registration was successful, false if username already exists.
-     */
     public boolean register(String username, String password) {
         try {
             if (findUserByUsername(username) != null) {
@@ -104,26 +95,24 @@ public class AuthService implements AuthProvider {
         }
     }
 
-    /**
-     * Logs a user in.
-     * @param username The username.
-     * @param password The password.
-     * @return The User object if login is successful, null otherwise.
-     */
     public User login(String username, String password) {
         try {
             User user = findUserByUsername(username);
 
             if (user != null && user.checkPassword(password)) {
                 System.out.println("Login successful! Welcome, " + user.getUsername());
-                return user; // Return the logged-in user object
+                return user;
             }
+
             System.out.println("Error: Invalid username or password.");
-            return null; // Login failed
+            return null;
         } catch (AuthException | DatabaseException e) {
             LOGGER.log(Level.SEVERE, "Authentication failed due to system error", e);
             System.out.println("Authentication failed due to system error. Please try again later.");
             return null;
         }
+
     }
+
+    // recordLogout is intentionally a no-op here; AuthProvider provides a default no-op implementation.
 }

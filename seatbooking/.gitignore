@@ -1,3 +1,18 @@
+<<<<<<< HEAD
+# Compiled Java class files
+*.class
+target/
+bin/
+
+# IDE files
+.vscode/
+.settings/
+.project
+.classpath
+
+# Log files
+*.log
+=======
 # Maven / Java
 target/
 **/target/
@@ -46,3 +61,4 @@ nbproject/private/
 ehthumbs.db
 Icon?
 
+>>>>>>> 0cc995a73f98b477cee6f03b3008dff69d906f7b

@@ -1,4 +1,4 @@
-package com.booking;
+package com.booking.service;
 
 import java.sql.Connection;
 

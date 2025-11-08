@@ -1,13 +1,14 @@
-package com.booking;
+package com.booking.model;
 
 import java.util.ArrayList;
 import java.util.List;
+
 
 public class Train {
 
     private String trainNumber;
     private String trainName;
-    private List<String> route; // A list of station names
+    private List<String> route; 
     private List<Seat> seats;
 
     public Train(String trainNumber, String trainName, List<String> route, int totalSeats) {
@@ -15,8 +16,7 @@ public class Train {
         this.trainName = trainName;
         this.route = route;
         
-        // OOPS: Composition
-        // The Train 'has-a' list of Seats. We create them here.
+        // Composition: Train has Seats
         this.seats = new ArrayList<>();
         for (int i = 1; i <= totalSeats; i++) {
             this.seats.add(new Seat("S" + i)); // e.g., "S1", "S2", etc.
@@ -38,6 +38,24 @@ public class Train {
 
     public List<Seat> getSeats() {
         return seats;
+    }
+
+    /**
+     * Returns number of seats that are currently booked on this train.
+     */
+    public int getBookedSeatCount() {
+        int count = 0;
+        for (Seat s : seats) {
+            if (s.isBooked()) count++;
+        }
+        return count;
+    }
+
+    /**
+     * Returns number of seats that are currently available on this train.
+     */
+    public int getAvailableSeatCount() {
+        return seats.size() - getBookedSeatCount();
     }
 
     // --- Helper Method ---
