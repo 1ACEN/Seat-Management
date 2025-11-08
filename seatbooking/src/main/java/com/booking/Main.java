@@ -9,7 +9,8 @@ public class Main {
     // Make services and scanner static so all methods can access them
     private static AuthService authService = new AuthService();
     private static TrainService trainService = new TrainService();
-    private static BookingService bookingService = new BookingService();
+    // BookingService depends on TrainService to resolve trains/seats when loading tickets from DB
+    private static BookingService bookingService = new BookingService(trainService);
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
@@ -46,6 +47,9 @@ public class Main {
                         } else {
                             showPassengerMenu(loggedInUser);
                         }
+                        // record logout event when user returns to main menu
+                        authService.recordLogout(loggedInUser.getUsername());
+                        loggedInUser = null;
                     }
                     break;
                 case 2:

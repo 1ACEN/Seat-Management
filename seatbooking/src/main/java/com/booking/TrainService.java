@@ -3,6 +3,10 @@ package com.booking;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.List;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
 public class TrainService {
 
@@ -10,8 +14,17 @@ public class TrainService {
 
     public TrainService() {
         this.trains = new ArrayList<>();
-        // Let's add some default trains for testing
-        initializeTrains();
+        // Ensure DB schema exists
+        Database.init();
+
+        // Load trains from DB. If none exist, populate defaults and reload.
+        loadTrainsFromDb();
+        if (this.trains.isEmpty()) {
+            initializeTrains();
+            // reload to ensure data came from DB insert
+            this.trains.clear();
+            loadTrainsFromDb();
+        }
     }
 
     /**
@@ -30,6 +43,59 @@ public class TrainService {
         this.trains.add(t1);
         this.trains.add(t2);
         this.trains.add(t3);
+    }
+
+    /**
+     * Loads trains from the database into the in-memory list.
+     */
+    private void loadTrainsFromDb() {
+        String sql = "SELECT train_number, train_name, route, total_seats FROM trains";
+        try (Connection c = Database.getConnection();
+             PreparedStatement ps = c.prepareStatement(sql);
+             ResultSet rs = ps.executeQuery()) {
+
+            while (rs.next()) {
+                String number = rs.getString("train_number");
+                String name = rs.getString("train_name");
+                String routeCsv = rs.getString("route");
+                int totalSeats = rs.getInt("total_seats");
+
+                List<String> route = new ArrayList<>();
+                if (routeCsv != null && !routeCsv.isEmpty()) {
+                    route = Arrays.asList(routeCsv.split(","));
+                }
+
+                Train t = new Train(number, name, route, totalSeats);
+                this.trains.add(t);
+            }
+            // After loading trains, mark seats as booked if there are active tickets
+            try (PreparedStatement ps2 = c.prepareStatement("SELECT train_number, seat_number FROM tickets WHERE status = 'ACTIVE'");
+                 ResultSet rs2 = ps2.executeQuery()) {
+
+                while (rs2.next()) {
+                    String tnum = rs2.getString("train_number");
+                    String seatNum = rs2.getString("seat_number");
+
+                    // find train in memory
+                    for (Train train : this.trains) {
+                        if (train.getTrainNumber().equalsIgnoreCase(tnum)) {
+                            for (Seat seat : train.getSeats()) {
+                                if (seat.getSeatNumber().equalsIgnoreCase(seatNum)) {
+                                    seat.book();
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            } catch (SQLException ex) {
+                System.out.println("Error marking booked seats from tickets: " + ex.getMessage());
+            }
+
+        } catch (SQLException e) {
+            System.out.println("Error loading trains from DB: " + e.getMessage());
+        }
     }
 
     /**
@@ -88,11 +154,24 @@ public class TrainService {
                 return false;
             }
         }
-        
-        Train newTrain = new Train(trainNumber, trainName, route, totalSeats);
-        this.trains.add(newTrain);
-        System.out.println("Train " + trainName + " added successfully.");
-        return true;
+        // Persist to DB
+        String sql = "INSERT INTO trains (train_number, train_name, route, total_seats) VALUES (?, ?, ?, ?)";
+        String routeCsv = String.join(",", route);
+        try (Connection c = Database.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, trainNumber);
+            ps.setString(2, trainName);
+            ps.setString(3, routeCsv);
+            ps.setInt(4, totalSeats);
+            ps.executeUpdate();
+
+            Train newTrain = new Train(trainNumber, trainName, route, totalSeats);
+            this.trains.add(newTrain);
+            System.out.println("Train " + trainName + " added successfully.");
+            return true;
+        } catch (SQLException e) {
+            System.out.println("Error adding train to DB: " + e.getMessage());
+            return false;
+        }
     }
 
     // --- ADMIN METHOD ---
