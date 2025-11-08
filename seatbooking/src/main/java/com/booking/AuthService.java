@@ -1,17 +1,38 @@
 package com.booking;
 
-import java.util.ArrayList;
-import java.util.List;
+import java.sql.Connection;
+import java.sql.PreparedStatement;
+import java.sql.ResultSet;
+import java.sql.SQLException;
 
+/**
+ * AuthService backed by a MySQL database (users table).
+ *
+ * Notes:
+ * - Passwords are stored in plaintext for simplicity (keep as-is to match existing design).
+ * - In production, always store salted hashes.
+ */
 public class AuthService {
 
-    // We'll store users in a simple list for now (in-memory database)
-    private List<User> users;
-
     public AuthService() {
-        this.users = new ArrayList<>();
-        // Let's add a default admin user for testing
-        this.users.add(new User("admin", "admin123", Role.ADMIN));
+        // Initialize DB schema and ensure default admin exists
+        Database.init();
+
+        if (findUserByUsername("admin") == null) {
+            try (Connection c = Database.getConnection();
+                 PreparedStatement ps = c.prepareStatement("INSERT INTO users(username, password, role) VALUES(?,?,?)")) {
+                ps.setString(1, "admin");
+                ps.setString(2, "admin123");
+                ps.setString(3, Role.ADMIN.name());
+                ps.executeUpdate();
+                System.out.println("Created default admin user (admin/admin123)");
+            } catch (SQLException e) {
+                // If another process created it concurrently, ignore duplicate key
+                if (!e.getMessage().toLowerCase().contains("duplicate")) {
+                    e.printStackTrace();
+                }
+            }
+        }
     }
 
     /**
@@ -20,10 +41,19 @@ public class AuthService {
      * @return The User object if found, null otherwise.
      */
     private User findUserByUsername(String username) {
-        for (User user : users) {
-            if (user.getUsername().equals(username)) {
-                return user;
+        String sql = "SELECT username, password, role FROM users WHERE username = ?";
+        try (Connection c = Database.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, username);
+            try (ResultSet rs = ps.executeQuery()) {
+                if (rs.next()) {
+                    String u = rs.getString("username");
+                    String p = rs.getString("password");
+                    Role r = Role.valueOf(rs.getString("role"));
+                    return new User(u, p, r);
+                }
             }
+        } catch (SQLException e) {
+            e.printStackTrace();
         }
         return null;
     }
@@ -40,11 +70,18 @@ public class AuthService {
             return false;
         }
 
-        // By default, new registrations are Passengers
-        User newUser = new User(username, password, Role.PASSENGER);
-        this.users.add(newUser);
-        System.out.println("Registration successful for: " + username);
-        return true;
+        String sql = "INSERT INTO users(username, password, role) VALUES(?,?,?)";
+        try (Connection c = Database.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
+            ps.setString(1, username);
+            ps.setString(2, password);
+            ps.setString(3, Role.PASSENGER.name());
+            ps.executeUpdate();
+            System.out.println("Registration successful for: " + username);
+            return true;
+        } catch (SQLException e) {
+            System.out.println("Error registering user: " + e.getMessage());
+            return false;
+        }
     }
 
     /**
