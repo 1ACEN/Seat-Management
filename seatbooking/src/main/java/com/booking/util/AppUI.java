@@ -234,6 +234,8 @@ public class AppUI {
         System.out.print("Enter End Station (e.g., Pune, Jaipur): ");
         String endStation = scanner.nextLine();
 
+        
+
         List<Train> availableTrains = trainService.searchTrains(startStation, endStation);
         if (availableTrains.isEmpty()) {
             System.out.println("No trains found for your route. Returning to menu.");
@@ -254,29 +256,53 @@ public class AppUI {
         }
         Train selectedTrain = availableTrains.get(trainChoice - 1);
 
-        trainService.displaySeats(selectedTrain);
-        System.out.print("Select a seat (e.g., S1): ");
-        String seatNumber = scanner.nextLine();
-
-        Seat selectedSeat = trainService.findSeat(selectedTrain, seatNumber);
-        if (selectedSeat == null) {
-            System.out.println("Invalid seat or seat is already booked. Returning to menu.");
+        int available = selectedTrain.getAvailableSeatCount();
+        System.out.println("Available seats: " + available);
+        if (available <= 0) {
+            System.out.println("No seats available on this train. Returning to menu.");
             return;
         }
 
-        System.out.print("Confirm booking for " + selectedTrain.getTrainName() + ", Seat " + selectedSeat.getSeatNumber() + "? (yes/no): ");
-        String confirmation = scanner.nextLine();
+        System.out.print("How many seats would you like to book? ");
+        int seatsToBook = 1;
+        try {
+            seatsToBook = Integer.parseInt(scanner.nextLine());
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid number. Returning to menu.");
+            return;
+        }
 
-        if (confirmation.equalsIgnoreCase("yes")) {
-            try {
-                Ticket newTicket = bookingService.createTicket(passenger, selectedTrain, selectedSeat, date);
-                System.out.println("\nBooking successful! Your Ticket Details:");
-                newTicket.displayTicketDetails();
-            } catch (ValidationException ve) {
-                System.out.println("Booking failed: " + ve.getMessage());
-            }
-        } else {
+        if (seatsToBook < 1 || seatsToBook > available) {
+            System.out.println("Invalid number of seats requested. Must be between 1 and " + available + ". Returning to menu.");
+            return;
+        }
+
+        System.out.print("Confirm booking of " + seatsToBook + " seat(s) on " + selectedTrain.getTrainName() + "? (yes/no): ");
+        String confirmation = scanner.nextLine();
+        if (!confirmation.equalsIgnoreCase("yes")) {
             System.out.println("Booking cancelled.");
+            return;
+        }
+
+        try {
+            // For multi-seat bookings ask username for each ticket
+            java.util.List<String> usernames = new java.util.ArrayList<>();
+            for (int i = 1; i <= seatsToBook; i++) {
+                System.out.print("Enter passenger username for ticket " + i + " (leave empty to book for yourself): ");
+                String u = scanner.nextLine().trim();
+                if (u.isEmpty()) u = passenger.getUsername();
+                usernames.add(u);
+            }
+
+            List<Ticket> newTickets = bookingService.createTicketsForUsernames(usernames, selectedTrain, date, passenger.getUsername());
+            if (newTickets == null || newTickets.isEmpty()) {
+                System.out.println("Booking failed. No tickets were created.");
+            } else {
+                System.out.println("\nBooking successful! Created " + newTickets.size() + " ticket(s):");
+                for (Ticket t : newTickets) t.displayTicketDetails();
+            }
+        } catch (ValidationException ve) {
+            System.out.println("Booking failed: " + ve.getMessage());
         }
     }
 

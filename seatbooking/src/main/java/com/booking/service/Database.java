@@ -60,7 +60,8 @@ public class Database implements DatabaseProvider {
 
         String createTickets = "CREATE TABLE IF NOT EXISTS tickets ("
                 + "pnr VARCHAR(50) PRIMARY KEY,"
-                + "username VARCHAR(100) NOT NULL,"
+        + "username VARCHAR(100) NOT NULL,"
+        + "booked_by VARCHAR(100) DEFAULT NULL,"
                 + "train_number VARCHAR(50) NOT NULL,"
                 + "seat_number VARCHAR(50) NOT NULL,"
                 + "travel_date VARCHAR(20) NOT NULL,"
@@ -103,6 +104,12 @@ public class Database implements DatabaseProvider {
             try (ResultSet rs = s.executeQuery("SHOW COLUMNS FROM user_history LIKE 'pnr'")) {
                 if (!rs.next()) {
                     s.executeUpdate("ALTER TABLE user_history ADD COLUMN pnr VARCHAR(50) DEFAULT NULL");
+                }
+            }
+            // Ensure tickets.booked_by exists for tracking who made the booking
+            try (ResultSet rs = s.executeQuery("SHOW COLUMNS FROM tickets LIKE 'booked_by'")) {
+                if (!rs.next()) {
+                    s.executeUpdate("ALTER TABLE tickets ADD COLUMN booked_by VARCHAR(100) DEFAULT NULL");
                 }
             }
 

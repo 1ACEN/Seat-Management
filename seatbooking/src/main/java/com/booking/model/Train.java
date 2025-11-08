@@ -61,6 +61,21 @@ public class Train {
     // --- Helper Method ---
     // Checks if this train runs between the two stations
     public boolean hasStops(String startStation, String endStation) {
-        return route.contains(startStation) && route.contains(endStation);
+        if (startStation == null || endStation == null) return false;
+        String start = startStation.trim().toLowerCase();
+        String end = endStation.trim().toLowerCase();
+
+        int startIdx = -1;
+        int endIdx = -1;
+        for (int i = 0; i < route.size(); i++) {
+            String stop = route.get(i);
+            if (stop == null) continue;
+            String norm = stop.trim().toLowerCase();
+            if (norm.equals(start) && startIdx == -1) startIdx = i;
+            if (norm.equals(end) && endIdx == -1) endIdx = i;
+        }
+
+        // Ensure both stops exist and start appears before end (direction-aware)
+        return startIdx != -1 && endIdx != -1 && startIdx < endIdx;
     }
 }

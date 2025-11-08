@@ -108,9 +108,11 @@ public class TrainService {
     }
 
     public List<Train> searchTrains(String startStation, String endStation) {
+        String start = startStation == null ? "" : startStation.trim();
+        String end = endStation == null ? "" : endStation.trim();
         List<Train> availableTrains = new ArrayList<>();
         for (Train train : this.trains) {
-            if (train.hasStops(startStation, endStation)) {
+            if (train.hasStops(start, end)) {
                 availableTrains.add(train);
             }
         }
