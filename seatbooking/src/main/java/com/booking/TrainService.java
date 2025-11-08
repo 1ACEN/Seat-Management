@@ -78,4 +78,25 @@ public class TrainService {
         }
         return null; // Not found or already booked
     }
+
+    // --- ADMIN METHOD ---
+    public boolean addTrain(String trainNumber, String trainName, List<String> route, int totalSeats) {
+        // Check if train number already exists
+        for (Train train : this.trains) {
+            if (train.getTrainNumber().equalsIgnoreCase(trainNumber)) {
+                System.out.println("Error: Train Number already exists.");
+                return false;
+            }
+        }
+        
+        Train newTrain = new Train(trainNumber, trainName, route, totalSeats);
+        this.trains.add(newTrain);
+        System.out.println("Train " + trainName + " added successfully.");
+        return true;
+    }
+
+    // --- ADMIN METHOD ---
+    public List<Train> getAllTrains() {
+        return this.trains;
+    }
 }

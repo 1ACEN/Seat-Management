@@ -77,4 +77,8 @@ public class BookingService {
         // Step 2: Remove the ticket from our database
         return this.allTickets.remove(ticket);
     }
+
+    public List<Ticket> getAllTickets() {
+        return this.allTickets;
+    }
 }

@@ -1,5 +1,6 @@
 package com.booking;
 
+import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
@@ -8,7 +9,7 @@ public class Main {
     // Make services and scanner static so all methods can access them
     private static AuthService authService = new AuthService();
     private static TrainService trainService = new TrainService();
-    private static BookingService bookingService = new BookingService(); // <-- NEW SERVICE
+    private static BookingService bookingService = new BookingService();
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
@@ -66,25 +67,41 @@ public class Main {
         }
     }
 
+    //----------------------------------------------------------------//
+    //                      ADMIN METHODS
+    //----------------------------------------------------------------//
+
     /**
      * Handles the Admin's workflow.
      */
     private static void showAdminMenu() {
         while (true) {
             System.out.println("\n--- ADMIN MENU ---");
-            System.out.println("1. Add/Update Train Details (Not Implemented)");
-            System.out.println("2. Check Passenger Details (Not Implemented)");
-            System.out.println("3. Logout");
+            System.out.println("1. Add New Train");
+            System.out.println("2. View All Trains");
+            System.out.println("3. Check Passenger Details (View All Bookings)");
+            System.out.println("4. Logout");
             System.out.print("Please choose an option: ");
             
-            int choice = Integer.parseInt(scanner.nextLine());
+            int choice = 0;
+            try {
+                choice = Integer.parseInt(scanner.nextLine());
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input.");
+                continue;
+            }
 
             switch (choice) {
                 case 1:
+                    handleAddTrain(); 
+                    break;
                 case 2:
-                    System.out.println("This feature is not yet implemented.");
+                    handleViewAllTrains();
                     break;
                 case 3:
+                    handleViewAllBookings();
+                    break;
+                case 4:
                     System.out.println("Logging out admin...");
                     return; // Returns to the main menu
                 default:
@@ -92,6 +109,67 @@ public class Main {
             }
         }
     }
+    
+    /**
+     * Helper method for Admin to add a train.
+     */
+    private static void handleAddTrain() {
+        System.out.println("\n--- Add New Train ---");
+        System.out.print("Enter Train Number (e.g., T123): ");
+        String trainNumber = scanner.nextLine();
+        System.out.print("Enter Train Name (e.g., City Express): ");
+        String trainName = scanner.nextLine();
+        System.out.print("Enter Route (comma-separated, e.g., Mumbai,Pune,Delhi): ");
+        String routeStr = scanner.nextLine();
+        List<String> route = Arrays.asList(routeStr.split(","));
+        System.out.print("Enter Total Seats (e.g., 50): ");
+        int totalSeats = Integer.parseInt(scanner.nextLine());
+
+        trainService.addTrain(trainNumber, trainName, route, totalSeats);
+    }
+
+    /**
+     * Helper method for Admin to view all trains.
+     */
+    private static void handleViewAllTrains() {
+        System.out.println("\n--- All Trains in System ---");
+        List<Train> trains = trainService.getAllTrains();
+        if (trains.isEmpty()) {
+            System.out.println("No trains have been added to the system yet.");
+            return;
+        }
+        
+        for (Train train : trains) {
+            System.out.println("--------------------");
+            System.out.println("Train Name: " + train.getTrainName());
+            System.out.println("Train Number: " + train.getTrainNumber());
+            System.out.println("Route: " + String.join(" -> ", train.getRoute()));
+            System.out.println("Total Seats: " + train.getSeats().size());
+        }
+    }
+
+    /**
+     * Helper method for Admin to view all passenger bookings.
+     */
+    private static void handleViewAllBookings() {
+        System.out.println("\n--- All Passenger Bookings ---");
+        List<Ticket> allTickets = bookingService.getAllTickets();
+
+        if (allTickets.isEmpty()) {
+            System.out.println("No tickets have been booked in the system yet.");
+        } else {
+            System.out.println("Total bookings: " + allTickets.size());
+            for (Ticket ticket : allTickets) {
+                // We re-use the display method from the Ticket class
+                ticket.displayTicketDetails();
+            }
+        }
+    }
+
+
+    //----------------------------------------------------------------//
+    //                      PASSENGER METHODS
+    //----------------------------------------------------------------//
 
     /**
      * Handles the Passenger's (User's) workflow.
@@ -106,17 +184,23 @@ public class Main {
             System.out.println("4. Logout");
             System.out.print("Please choose an option: ");
 
-            int choice = Integer.parseInt(scanner.nextLine());
+            int choice = 0;
+            try {
+                choice = Integer.parseInt(scanner.nextLine());
+            } catch (NumberFormatException e) {
+                System.out.println("Invalid input.");
+                continue;
+            }
 
             switch (choice) {
                 case 1:
                     handleBookTicket(passenger);
                     break;
                 case 2:
-                    handleViewBookings(passenger); // <-- NEWLY IMPLEMENTED
+                    handleViewBookings(passenger);
                     break;
                 case 3:
-                    handleCancelTicket(passenger); // <-- NEWLY IMPLEMENTED
+                    handleCancelTicket(passenger);
                     break;
                 case 4:
                     System.out.println("Logging out " + passenger.getUsername() + "...");
@@ -132,9 +216,9 @@ public class Main {
      * @param passenger The user who is booking.
      */
     private static void handleBookTicket(User passenger) {
-        // Step 1: Get travel details (as per your workflow)
+        // Step 1: Get travel details
         System.out.print("Enter Date (YYYY-MM-DD): ");
-        String date = scanner.nextLine(); // <-- The 'date' variable is now used!
+        String date = scanner.nextLine();
         System.out.print("Enter Start Station (e.g., Mumbai, Delhi): ");
         String startStation = scanner.nextLine();
         System.out.print("Enter End Station (e.g., Pune, Jaipur): ");
