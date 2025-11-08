@@ -7,13 +7,21 @@ import java.util.Scanner;
 public class Main {
 
     // Make services and scanner static so all methods can access them
-    private static AuthService authService = new AuthService();
+    private static AuthProvider authService;
     private static TrainService trainService = new TrainService();
     private static BookingService bookingService = new BookingService();
     private static Scanner scanner = new Scanner(System.in);
 
     public static void main(String[] args) {
-        User loggedInUser = null; 
+        // Initialize services with proper exception handling
+        try {
+            authService = new AuthService(new Database());
+        } catch (AuthException | DatabaseException e) {
+            System.err.println("Fatal: failed to initialize application: " + e.getMessage());
+            return;
+        }
+
+        User loggedInUser = null;
 
         while (true) {
             System.out.println("\n---== Welcome to the Train Booking System ==---");

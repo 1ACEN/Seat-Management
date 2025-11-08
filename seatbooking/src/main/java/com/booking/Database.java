@@ -7,20 +7,19 @@ import java.sql.SQLException;
 import java.sql.Statement;
 
 /**
- * Simple Database utility to get JDBC connections.
- * Reads configuration from environment variables:
- *  - DB_URL (default: jdbc:mysql://localhost:3306/seatbooking?useSSL=false&serverTimezone=UTC)
- *  - DB_USER (default: root)
- *  - DB_PASSWORD (default: empty)
+ * Database implementation of {@link DatabaseProvider} that gets configuration from a .env or environment variables.
  */
-public class Database {
-       private static final Dotenv dotenv = Dotenv.load();
+public class Database implements DatabaseProvider {
+    private final Dotenv dotenv = Dotenv.load();
+    private final String url;
+    private final String user;
+    private final String password;
 
-    private static final String url = dotenv.get("DB_URL", "jdbc:mysql://localhost:3306/seatbooking?useSSL=false&serverTimezone=UTC");
-    private static final String user = dotenv.get("DB_USER", "root");
-    private static final String password = dotenv.get("DB_PASSWORD", "");
+    public Database() {
+        this.url = dotenv.get("DB_URL", "jdbc:mysql://localhost:3306/seatbooking?useSSL=false&serverTimezone=UTC");
+        this.user = dotenv.get("DB_USER", "root");
+        this.password = dotenv.get("DB_PASSWORD", "");
 
-    static {
         try {
             Class.forName("com.mysql.cj.jdbc.Driver");
         } catch (ClassNotFoundException e) {
@@ -28,15 +27,21 @@ public class Database {
         }
     }
 
-    public static Connection getConnection() throws SQLException {
-        return DriverManager.getConnection(url, user, password);
+    @Override
+    public Connection getConnection() {
+        try {
+            return DriverManager.getConnection(url, user, password);
+        } catch (SQLException e) {
+            throw new DatabaseException("Unable to obtain database connection", e);
+        }
     }
 
     /**
      * Initialize database schema minimal required tables.
      * Creates `users` table if it doesn't exist.
      */
-    public static void init() {
+    @Override
+    public void init() {
         String createUsers = "CREATE TABLE IF NOT EXISTS users ("
                 + "id INT AUTO_INCREMENT PRIMARY KEY,"
                 + "username VARCHAR(100) UNIQUE NOT NULL,"
@@ -47,7 +52,7 @@ public class Database {
         try (Connection c = getConnection(); Statement s = c.createStatement()) {
             s.executeUpdate(createUsers);
         } catch (SQLException e) {
-            throw new RuntimeException("Failed to initialize database schema", e);
+            throw new DatabaseException("Failed to initialize database schema", e);
         }
     }
 }

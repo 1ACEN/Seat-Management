@@ -29,4 +29,59 @@
 </dependency>
     </dependencies>
 
+<profiles>
+    <profile>
+        <id>run</id>
+        <activation>
+            <activeByDefault>false</activeByDefault>
+        </activation>
+        <build>
+            <plugins>
+                <plugin>
+                    <groupId>org.codehaus.mojo</groupId>
+                    <artifactId>exec-maven-plugin</artifactId>
+                    <version>3.6.2</version>
+                    <configuration>
+                        <mainClass>com.booking.Main</mainClass>
+                    </configuration>
+                </plugin>
+            </plugins>
+        </build>
+    </profile>
+</profiles>
+
+    <build>
+    <plugins>
+        <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-compiler-plugin</artifactId>
+            <version>3.11.0</version>
+            <configuration>
+                <source>17</source>
+                <target>17</target>
+            </configuration>
+        </plugin>
+
+        <plugin>
+            <groupId>org.codehaus.mojo</groupId>
+            <artifactId>exec-maven-plugin</artifactId>
+            <version>3.6.2</version>
+            <executions>
+                <!-- custom command: mvn run -->
+                <execution>
+                    <id>run-project</id>
+                    <goals>
+                        <goal>java</goal>
+                    </goals>
+                    <phase>install</phase> <!-- run after build -->
+                    <configuration>
+                        <mainClass>com.booking.Main</mainClass>
+                    </configuration>
+                </execution>
+            </executions>
+        </plugin>
+    </plugins>
+</build>
+
+
 </project>
