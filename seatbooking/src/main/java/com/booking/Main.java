@@ -11,9 +11,6 @@ import com.booking.util.AppUI;
 
 import java.util.Scanner;
 
-/**
- * Application bootstrap. Keeps main small and delegates interactive behavior to AppUI.
- */
 public class Main {
     public static void main(String[] args) {
         Database db;

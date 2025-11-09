@@ -15,9 +15,6 @@ import java.util.Arrays;
 import java.util.List;
 import java.util.Scanner;
 
-/**
- * Console UI helper extracted from Main to keep main class small and focused.
- */
 public class AppUI {
 
     private final AuthProvider authService;
@@ -36,26 +33,17 @@ public class AppUI {
         User loggedInUser = null;
 
         while (true) {
-            System.out.println("\n---== Welcome to the Train Booking System ==---");
+            ConsoleHelper.printHeader("Welcome to the Train Booking System");
             System.out.println("1. Login");
             System.out.println("2. Register New User");
             System.out.println("3. Exit");
-            System.out.print("Please choose an option: ");
 
-            int choice = 0;
-            try {
-                choice = Integer.parseInt(scanner.nextLine());
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid input. Please enter a number.");
-                continue;
-            }
+            int choice = ConsoleHelper.promptInt(scanner, "Please choose an option: ", 1, 3);
 
             switch (choice) {
                 case 1:
-                    System.out.print("Enter username: ");
-                    String username = scanner.nextLine();
-                    System.out.print("Enter password: ");
-                    String password = scanner.nextLine();
+                    String username = ConsoleHelper.prompt(scanner, "Enter username: ");
+                    String password = ConsoleHelper.prompt(scanner, "Enter password: ");
                     loggedInUser = authService.login(username, password);
 
                     if (loggedInUser != null) {
@@ -69,10 +57,8 @@ public class AppUI {
                     }
                     break;
                 case 2:
-                    System.out.print("Enter desired username: ");
-                    String newUsername = scanner.nextLine();
-                    System.out.print("Enter desired password: ");
-                    String newPassword = scanner.nextLine();
+                    String newUsername = ConsoleHelper.prompt(scanner, "Enter desired username: ");
+                    String newPassword = ConsoleHelper.prompt(scanner, "Enter desired password: ");
                     authService.register(newUsername, newPassword);
                     break;
                 case 3:
@@ -85,7 +71,6 @@ public class AppUI {
         }
     }
 
-    // Admin Menu
     private void showAdminMenu() {
         while (true) {
             System.out.println("\n--- ADMIN MENU ---");
@@ -93,15 +78,8 @@ public class AppUI {
             System.out.println("2. View All Trains");
             System.out.println("3. Check Passenger Details (View All Bookings)");
             System.out.println("4. Logout");
-            System.out.print("Please choose an option: ");
 
-            int choice = 0;
-            try {
-                choice = Integer.parseInt(scanner.nextLine());
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid input.");
-                continue;
-            }
+            int choice = ConsoleHelper.promptInt(scanner, "Please choose an option: ", 1, 4);
 
             switch (choice) {
                 case 1:
@@ -123,13 +101,10 @@ public class AppUI {
     }
 
     private void handleAddTrain() {
-        System.out.println("\n--- Add New Train ---");
-        System.out.print("Enter Train Number (e.g., T123): ");
-        String trainNumber = scanner.nextLine();
-        System.out.print("Enter Train Name (e.g., City Express): ");
-        String trainName = scanner.nextLine();
-        System.out.print("Enter Route (comma-separated, e.g., Mumbai,Pune,Delhi): ");
-        String routeStr = scanner.nextLine();
+        ConsoleHelper.printHeader("Add New Train");
+        String trainNumber = ConsoleHelper.prompt(scanner, "Enter Train Number (e.g., T123): ");
+        String trainName = ConsoleHelper.prompt(scanner, "Enter Train Name (e.g., City Express): ");
+        String routeStr = ConsoleHelper.prompt(scanner, "Enter Route (comma-separated, e.g., Mumbai,Pune,Delhi): ");
         List<String> route = Arrays.stream(routeStr.split(","))
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
@@ -138,8 +113,7 @@ public class AppUI {
             System.out.println("Error: A route must contain at least two stops (start and end).");
             return;
         }
-        System.out.print("Enter Total Seats (e.g., 50): ");
-        int totalSeats = Integer.parseInt(scanner.nextLine());
+        int totalSeats = ConsoleHelper.promptInt(scanner, "Enter Total Seats (e.g., 50): ", 1, 10000);
 
         trainService.addTrain(trainNumber, trainName, route, totalSeats);
     }
@@ -159,7 +133,6 @@ public class AppUI {
             System.out.println("Total Seats: " + train.getSeats().size());
             System.out.println("Booked Seats: " + train.getBookedSeatCount());
             System.out.println("Available Seats: " + train.getAvailableSeatCount());
-            // Optionally show booked seat numbers (if any)
             List<String> booked = train.getSeats().stream().filter(Seat::isBooked).map(Seat::getSeatNumber).toList();
             if (!booked.isEmpty()) {
                 System.out.println("Booked Seat Numbers: " + String.join(", ", booked));
@@ -180,23 +153,14 @@ public class AppUI {
         }
     }
 
-    // Passenger menu
     private void showPassengerMenu(User passenger) {
         while (true) {
-            System.out.println("\n--- PASSENGER MENU ---");
             System.out.println("1. Book New Ticket");
             System.out.println("2. View My Bookings");
             System.out.println("3. Cancel Ticket");
             System.out.println("4. Logout");
-            System.out.print("Please choose an option: ");
 
-            int choice = 0;
-            try {
-                choice = Integer.parseInt(scanner.nextLine());
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid input.");
-                continue;
-            }
+            int choice = ConsoleHelper.promptInt(scanner, "Please choose an option: ", 1, 4);
 
             switch (choice) {
                 case 1:
@@ -218,9 +182,7 @@ public class AppUI {
     }
 
     private void handleBookTicket(User passenger) {
-        System.out.print("Enter Date (YYYY-MM-DD): ");
-        String date = scanner.nextLine();
-        // quick validation before doing heavier work
+        String date = ConsoleHelper.prompt(scanner, "Enter Date (YYYY-MM-DD): ");
         if (!InputValidator.isValidDate(date)) {
             System.out.println("Invalid date format. Please use YYYY-MM-DD.");
             return;
@@ -229,12 +191,8 @@ public class AppUI {
             System.out.println("Travel date cannot be before today.");
             return;
         }
-        System.out.print("Enter Start Station (e.g., Mumbai, Delhi): ");
-        String startStation = scanner.nextLine();
-        System.out.print("Enter End Station (e.g., Pune, Jaipur): ");
-        String endStation = scanner.nextLine();
-
-        
+        String startStation = ConsoleHelper.prompt(scanner, "Enter Start Station (e.g., Mumbai, Delhi): ");
+        String endStation = ConsoleHelper.prompt(scanner, "Enter End Station (e.g., Pune, Jaipur): ");
 
         List<Train> availableTrains = trainService.searchTrains(startStation, endStation);
         if (availableTrains.isEmpty()) {
@@ -247,13 +205,8 @@ public class AppUI {
             Train train = availableTrains.get(i);
             System.out.println((i + 1) + ". " + train.getTrainName() + " (" + train.getTrainNumber() + ")");
         }
-        System.out.print("Select a train (enter number): ");
-        int trainChoice = Integer.parseInt(scanner.nextLine());
-
-        if (trainChoice < 1 || trainChoice > availableTrains.size()) {
-            System.out.println("Invalid train selection. Returning to menu.");
-            return;
-        }
+        int trainChoice = ConsoleHelper.promptInt(scanner, "Select a train (enter number): ", 1,
+                availableTrains.size());
         Train selectedTrain = availableTrains.get(trainChoice - 1);
 
         int available = selectedTrain.getAvailableSeatCount();
@@ -263,43 +216,34 @@ public class AppUI {
             return;
         }
 
-        System.out.print("How many seats would you like to book? ");
-        int seatsToBook = 1;
-        try {
-            seatsToBook = Integer.parseInt(scanner.nextLine());
-        } catch (NumberFormatException e) {
-            System.out.println("Invalid number. Returning to menu.");
-            return;
-        }
-
-        if (seatsToBook < 1 || seatsToBook > available) {
-            System.out.println("Invalid number of seats requested. Must be between 1 and " + available + ". Returning to menu.");
-            return;
-        }
-
-        System.out.print("Confirm booking of " + seatsToBook + " seat(s) on " + selectedTrain.getTrainName() + "? (yes/no): ");
-        String confirmation = scanner.nextLine();
+        int seatsToBook = ConsoleHelper.promptInt(scanner, "How many seats would you like to book? ", 1, available);
+        String confirmation = ConsoleHelper.prompt(scanner,
+                "Confirm booking of " + seatsToBook + " seat(s) on " + selectedTrain.getTrainName() + "? (yes/no): ");
         if (!confirmation.equalsIgnoreCase("yes")) {
             System.out.println("Booking cancelled.");
             return;
         }
 
         try {
-            // For multi-seat bookings ask username for each ticket
             java.util.List<String> usernames = new java.util.ArrayList<>();
             for (int i = 1; i <= seatsToBook; i++) {
-                System.out.print("Enter passenger username for ticket " + i + " (leave empty to book for yourself): ");
-                String u = scanner.nextLine().trim();
-                if (u.isEmpty()) u = passenger.getUsername();
+                String u = ConsoleHelper
+                        .prompt(scanner,
+                                "Enter passenger username for ticket " + i + " (leave empty to book for yourself): ")
+                        .trim();
+                if (u.isEmpty())
+                    u = passenger.getUsername();
                 usernames.add(u);
             }
 
-            List<Ticket> newTickets = bookingService.createTicketsForUsernames(usernames, selectedTrain, date, passenger.getUsername());
+            List<Ticket> newTickets = bookingService.createTicketsForUsernames(usernames, selectedTrain, date,
+                    passenger.getUsername());
             if (newTickets == null || newTickets.isEmpty()) {
                 System.out.println("Booking failed. No tickets were created.");
             } else {
                 System.out.println("\nBooking successful! Created " + newTickets.size() + " ticket(s):");
-                for (Ticket t : newTickets) t.displayTicketDetails();
+                for (Ticket t : newTickets)
+                    t.displayTicketDetails();
             }
         } catch (ValidationException ve) {
             System.out.println("Booking failed: " + ve.getMessage());
@@ -307,10 +251,11 @@ public class AppUI {
     }
 
     private void handleViewBookings(User passenger) {
-        System.out.println("\n--- My Bookings ---");
+        ConsoleHelper.printHeader("My Bookings");
 
-        List<Ticket> upcoming = bookingService.findTicketsByPassenger(passenger);
-        List<Ticket> past = bookingService.findPastTicketsByPassenger(passenger);
+    List<Ticket> upcoming = bookingService.findTicketsByPassenger(passenger);
+    List<Ticket> cancelled = bookingService.findCancelledTicketsByPassenger(passenger);
+    List<Ticket> past = bookingService.findPastTicketsByPassenger(passenger);
 
         System.out.println("\nUpcoming / Active Journeys:");
         if (upcoming == null || upcoming.isEmpty()) {
@@ -329,57 +274,67 @@ public class AppUI {
                 ticket.displayTicketDetails();
             }
         }
+        
+        System.out.println("\nCancelled Journeys:");
+        if (cancelled == null || cancelled.isEmpty()) {
+            System.out.println("  (none)");
+        } else {
+            for (Ticket ticket : cancelled) {
+                ticket.displayTicketDetails();
+            }
+        }
     }
 
     private void handleCancelTicket(User passenger) {
         System.out.println("\n--- Cancel Ticket ---");
-            List<Ticket> myTickets = bookingService.findTicketsByPassenger(passenger);
-            if (myTickets.isEmpty()) {
-                System.out.println("You have no active bookings to cancel.");
-                return;
-            }
+        List<Ticket> myTickets = bookingService.findTicketsByPassenger(passenger);
+        if (myTickets.isEmpty()) {
+            System.out.println("You have no active bookings to cancel.");
+            return;
+        }
 
-            System.out.println("Your active bookings:");
-            for (int i = 0; i < myTickets.size(); i++) {
-                Ticket t = myTickets.get(i);
-                System.out.println((i + 1) + ") PNR: " + t.getPnrNumber() + " | Train: " + t.getTrain().getTrainName() + " (" + t.getTrain().getTrainNumber() + ") | Seat: " + t.getSeat().getSeatNumber() + " | Date: " + t.getTravelDate());
-            }
+        System.out.println("Your active bookings:");
+        for (int i = 0; i < myTickets.size(); i++) {
+            Ticket t = myTickets.get(i);
+            System.out.println((i + 1) + ") PNR: " + t.getPnrNumber() + " | Train: " + t.getTrain().getTrainName()
+                    + " (" + t.getTrain().getTrainNumber() + ") | Seat: " + t.getSeat().getSeatNumber() + " | Date: "
+                    + t.getTravelDate());
+        }
 
-            System.out.print("Select a ticket to cancel (enter number) or 'q' to go back: ");
-            String sel = scanner.nextLine().trim();
-            if (sel.equalsIgnoreCase("q") || sel.isEmpty()) {
-                System.out.println("Cancellation aborted.");
-                return;
-            }
+        String sel = ConsoleHelper.prompt(scanner, "Select a ticket to cancel (enter number) or 'q' to go back: ")
+                .trim();
+        if (sel.equalsIgnoreCase("q") || sel.isEmpty()) {
+            System.out.println("Cancellation aborted.");
+            return;
+        }
 
-            int idx;
-            try {
-                idx = Integer.parseInt(sel);
-            } catch (NumberFormatException e) {
-                System.out.println("Invalid selection.");
-                return;
-            }
+        int idx;
+        try {
+            idx = Integer.parseInt(sel);
+        } catch (NumberFormatException e) {
+            System.out.println("Invalid selection.");
+            return;
+        }
 
-            if (idx < 1 || idx > myTickets.size()) {
-                System.out.println("Invalid selection.");
-                return;
-            }
+        if (idx < 1 || idx > myTickets.size()) {
+            System.out.println("Invalid selection.");
+            return;
+        }
 
-            Ticket ticket = myTickets.get(idx - 1);
-            System.out.println("Found ticket:");
-            ticket.displayTicketDetails();
-            System.out.print("Are you sure you want to cancel this ticket? (yes/no): ");
-            String confirmation = scanner.nextLine();
+        Ticket ticket = myTickets.get(idx - 1);
+        System.out.println("Found ticket:");
+        ticket.displayTicketDetails();
+        String confirmation = ConsoleHelper.prompt(scanner, "Are you sure you want to cancel this ticket? (yes/no): ");
 
-            if (confirmation.equalsIgnoreCase("yes")) {
-                if (bookingService.cancelTicket(ticket)) {
-                    System.out.println("Ticket " + ticket.getPnrNumber() + " has been successfully cancelled.");
-                    System.out.println("Seat " + ticket.getSeat().getSeatNumber() + " is now available.");
-                } else {
-                    System.out.println("Error: Could not cancel ticket.");
-                }
+        if (confirmation.equalsIgnoreCase("yes")) {
+            if (bookingService.cancelTicket(ticket)) {
+                System.out.println("Ticket " + ticket.getPnrNumber() + " has been successfully cancelled.");
+                System.out.println("Seat " + ticket.getSeat().getSeatNumber() + " is now available.");
             } else {
-                System.out.println("Cancellation aborted.");
+                System.out.println("Error: Could not cancel ticket.");
             }
+        } else {
+            System.out.println("Cancellation aborted.");
+        }
     }
 }

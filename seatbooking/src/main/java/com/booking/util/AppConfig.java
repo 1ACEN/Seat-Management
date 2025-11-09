@@ -2,20 +2,16 @@ package com.booking.util;
 
 import io.github.cdimascio.dotenv.Dotenv;
 
-/**
- * Centralized application configuration utility.
- * Reads from environment variables and .env via dotenv if available.
- */
+
 public final class AppConfig {
     private static final Dotenv DOTENV = initDotenv();
 
-    private AppConfig() { /* utility */ }
+    private AppConfig() {}
 
     private static Dotenv initDotenv() {
         try {
             return Dotenv.load();
         } catch (Exception e) {
-            // dotenv may not be present or .env missing; fall back to system env
             return null;
         }
     }

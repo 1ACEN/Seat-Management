@@ -2,15 +2,14 @@ package com.booking.service;
 
 import com.booking.model.User;
 
-/**
- * Authentication provider abstraction.
- * Implementations may store users in-memory, in a database, or via an external service.
- */
+
 public interface AuthProvider {
 
     /**
-     * Register a new user with given username and password. Default role should be PASSENGER.
-     * @return true if registration succeeded, false otherwise (e.g. username exists)
+     * Register a new user with the given username and password.
+     * @param username the username to register
+     * @param password the password for the account
+     * @return true if registration succeeded, false otherwise
      */
     boolean register(String username, String password);
 
@@ -20,10 +19,6 @@ public interface AuthProvider {
      */
     User login(String username, String password);
 
-    /**
-     * Record a logout event for the given username (optional implementation).
-     */
     default void recordLogout(String username) {
-        // no-op default
     }
 }

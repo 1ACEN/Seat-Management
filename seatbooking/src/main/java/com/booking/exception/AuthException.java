@@ -1,8 +1,5 @@
 package com.booking.exception;
 
-/**
- * Runtime exception to indicate authentication-related failures.
- */
 public class AuthException extends RuntimeException {
     public AuthException(String message) {
         super(message);

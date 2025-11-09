@@ -12,9 +12,6 @@ import java.sql.SQLException;
 import java.util.logging.Level;
 import java.util.logging.Logger;
 
-/**
- * AuthService backed by a MySQL database (users table).
- */
 public class AuthService implements AuthProvider {
 
     private static final Logger LOGGER = Logger.getLogger(AuthService.class.getName());
@@ -49,9 +46,6 @@ public class AuthService implements AuthProvider {
             }
         }
     }
-
-    // We no longer record login/logout into user_history. Booking history is written
-    // by BookingService (BOOK/CANCEL events). Keeping AuthService focused on auth.
 
     private User findUserByUsername(String username) {
         String sql = "SELECT username, password, role FROM users WHERE username = ?";
@@ -114,5 +108,4 @@ public class AuthService implements AuthProvider {
 
     }
 
-    // recordLogout is intentionally a no-op here; AuthProvider provides a default no-op implementation.
 }

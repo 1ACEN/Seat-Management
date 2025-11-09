@@ -4,9 +4,6 @@ import java.time.format.DateTimeFormatter;
 import java.time.format.DateTimeParseException;
 import java.time.LocalDate;
 
-/**
- * Small input validation utilities used across UI and services.
- */
 public final class InputValidator {
     private InputValidator() { }
 
@@ -28,10 +25,6 @@ public final class InputValidator {
         }
     }
 
-    /**
-     * Returns true if the provided date string is a valid ISO_LOCAL_DATE and
-     * the date is today or in the future.
-     */
     public static boolean isNotPastDate(String dateStr) {
         if (!isValidDate(dateStr)) return false;
         LocalDate d = LocalDate.parse(dateStr, DateTimeFormatter.ISO_LOCAL_DATE);

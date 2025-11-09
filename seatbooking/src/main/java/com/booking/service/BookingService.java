@@ -10,7 +10,7 @@ import com.booking.util.InputValidator;
 
 import java.util.ArrayList;
 import java.util.List;
-import java.util.Random;
+import com.booking.util.PnrGenerator;
 import java.sql.Connection;
 import java.sql.PreparedStatement;
 import java.sql.ResultSet;
@@ -21,7 +21,6 @@ import java.time.format.DateTimeParseException;
 
 public class BookingService {
 
-    // In-memory database for active tickets
     private List<Ticket> allTickets;
     private TrainService trainService;
     private final DatabaseProvider db;
@@ -31,36 +30,31 @@ public class BookingService {
         this.trainService = trainService;
         this.db = db;
 
-        // Ensure DB schema exists
         try {
             this.db.init();
         } catch (com.booking.exception.DatabaseException e) {
-            // fatal - rethrow
             throw e;
         }
-
-        // Load active tickets from DB into memory
         loadActiveTicketsFromDb();
     }
 
     public Ticket createTicket(User passenger, Train train, Seat seat, String date) {
-        // Validate date
         if (date == null || !InputValidator.isValidDate(date)) {
             throw new ValidationException("Invalid travel date format. Expected YYYY-MM-DD.");
         }
         if (!InputValidator.isNotPastDate(date)) {
             throw new ValidationException("Travel date cannot be before today.");
         }
-
-        String pnr = "TKT" + (new Random().nextInt(90000) + 10000);
-        String sql = "INSERT INTO tickets(pnr, username, train_number, seat_number, travel_date, status) VALUES(?,?,?,?,?,?)";
+        String pnr = PnrGenerator.generate();
+        String sql = "INSERT INTO tickets(pnr, username, train_number, seat_number, travel_date, booked_by, status) VALUES(?,?,?,?,?,?,?)";
         try (Connection c = this.db.getConnection(); PreparedStatement ps = c.prepareStatement(sql)) {
             ps.setString(1, pnr);
             ps.setString(2, passenger.getUsername());
             ps.setString(3, train.getTrainNumber());
             ps.setString(4, seat.getSeatNumber());
             ps.setString(5, date);
-            ps.setString(6, "ACTIVE");
+            ps.setString(6, passenger.getUsername());
+            ps.setString(7, "ACTIVE");
             ps.executeUpdate();
 
             Ticket newTicket = new Ticket(pnr, passenger, train, seat, date);
@@ -77,28 +71,26 @@ public class BookingService {
             } catch (SQLException | com.booking.exception.DatabaseException e) {
             }
 
-                String insertHistory = "INSERT INTO user_history(user_id, pnr, username, action, details) VALUES(?,?,?,?,?)";
-                try (Connection conn3 = this.db.getConnection(); PreparedStatement ps3 = conn3.prepareStatement(insertHistory)) {
-                    if (userId != null) ps3.setInt(1, userId); else ps3.setNull(1, java.sql.Types.INTEGER);
-                    ps3.setString(2, pnr);
-                    ps3.setString(3, passenger.getUsername());
-                    ps3.setString(4, "BOOK");
-                    ps3.setString(5, "Booked seat " + seat.getSeatNumber() + " on train " + train.getTrainNumber());
-                    ps3.executeUpdate();
-                } catch (SQLException | com.booking.exception.DatabaseException e) {
-                    // Fallback for older schema: try legacy insert without user_id/pnr
-                    try {
-                        String legacy = "INSERT INTO user_history(username, action, details) VALUES(?,?,?)";
-                        try (Connection c2 = this.db.getConnection(); PreparedStatement ps2 = c2.prepareStatement(legacy)) {
-                            ps2.setString(1, passenger.getUsername());
-                            ps2.setString(2, "BOOK");
-                            ps2.setString(3, "Booked seat " + seat.getSeatNumber() + " on train " + train.getTrainNumber());
-                            ps2.executeUpdate();
-                        }
-                    } catch (SQLException | com.booking.exception.DatabaseException ex) {
-                        // best-effort, ignore
+            String insertHistory = "INSERT INTO user_history(user_id, pnr, username, action, details) VALUES(?,?,?,?,?)";
+            try (Connection conn3 = this.db.getConnection(); PreparedStatement ps3 = conn3.prepareStatement(insertHistory)) {
+                if (userId != null) ps3.setInt(1, userId); else ps3.setNull(1, java.sql.Types.INTEGER);
+                ps3.setString(2, pnr);
+                ps3.setString(3, passenger.getUsername());
+                ps3.setString(4, "BOOK");
+                ps3.setString(5, "Booked seat " + seat.getSeatNumber() + " on train " + train.getTrainNumber());
+                ps3.executeUpdate();
+            } catch (SQLException | com.booking.exception.DatabaseException e) {
+                try {
+                    String legacy = "INSERT INTO user_history(username, action, details) VALUES(?,?,?)";
+                    try (Connection c2 = this.db.getConnection(); PreparedStatement ps2 = c2.prepareStatement(legacy)) {
+                        ps2.setString(1, passenger.getUsername());
+                        ps2.setString(2, "BOOK");
+                        ps2.setString(3, "Booked seat " + seat.getSeatNumber() + " on train " + train.getTrainNumber());
+                        ps2.executeUpdate();
                     }
+                } catch (SQLException | com.booking.exception.DatabaseException ex) {
                 }
+            }
 
             return newTicket;
         } catch (com.booking.exception.DatabaseException | SQLException e) {
@@ -107,22 +99,15 @@ public class BookingService {
         }
     }
 
-    /**
-     * Create multiple tickets for the given train on the same travel date.
-     * Books the first available seats up to requested count.
-     * Returns list of created Ticket objects (may be empty on failure).
-     */
     public List<Ticket> createTickets(User passenger, Train train, int numSeats, String date) {
         List<Ticket> created = new ArrayList<>();
         if (numSeats <= 0) throw new ValidationException("Number of seats to book must be at least 1.");
 
-        // Use a DB transaction to make multi-seat booking atomic and consistent
         Connection conn = null;
         try {
             conn = this.db.getConnection();
             conn.setAutoCommit(false);
 
-            // Lock existing active tickets for this train to avoid races
             String lockSql = "SELECT seat_number FROM tickets WHERE train_number = ? AND status = 'ACTIVE' FOR UPDATE";
             List<String> activeSeatNumbers = new ArrayList<>();
             try (PreparedStatement psLock = conn.prepareStatement(lockSql)) {
@@ -132,7 +117,6 @@ public class BookingService {
                 }
             }
 
-            // Compute available seats at DB-authoritative snapshot
             List<Seat> availableSeats = new ArrayList<>();
             for (Seat s : train.getSeats()) {
                 if (!activeSeatNumbers.contains(s.getSeatNumber())) availableSeats.add(s);
@@ -143,7 +127,6 @@ public class BookingService {
                 throw new ValidationException("Not enough seats available. Requested " + numSeats + ", available " + availableSeats.size());
             }
 
-            // find user id if present
             Integer userId = null;
             String findId = "SELECT id FROM users WHERE username = ?";
             try (PreparedStatement psFind = conn.prepareStatement(findId)) {
@@ -162,7 +145,7 @@ public class BookingService {
 
                 for (int i = 0; i < numSeats; i++) {
                     Seat seatToBook = availableSeats.get(i);
-                    String pnr = "TKT" + (new Random().nextInt(90000) + 10000);
+                    String pnr = PnrGenerator.generate();
 
                     psTicket.setString(1, pnr);
                     psTicket.setString(2, passenger.getUsername());
@@ -172,7 +155,6 @@ public class BookingService {
                     psTicket.setString(6, "ACTIVE");
                     psTicket.executeUpdate();
 
-                    // history insert (best-effort)
                     try {
                         if (userId != null) psHistory.setInt(1, userId); else psHistory.setNull(1, java.sql.Types.INTEGER);
                         psHistory.setString(2, pnr);
@@ -180,7 +162,6 @@ public class BookingService {
                         psHistory.setString(4, "Booked seat " + seatToBook.getSeatNumber() + " on train " + train.getTrainNumber());
                         psHistory.executeUpdate();
                     } catch (SQLException he) {
-                        // fallback to legacy insert with username if history schema older
                         try (PreparedStatement psLegacy = conn.prepareStatement("INSERT INTO user_history(username, action, details) VALUES(?,?,?)")) {
                             psLegacy.setString(1, passenger.getUsername());
                             psLegacy.setString(2, "BOOK");
@@ -190,7 +171,6 @@ public class BookingService {
                         }
                     }
 
-                    // build Ticket in-memory after successful inserts
                     User u = new User(passenger.getUsername(), "", Role.PASSENGER);
                     Ticket t = new Ticket(pnr, u, train, seatToBook, date);
                     created.add(t);
@@ -199,9 +179,7 @@ public class BookingService {
 
             conn.commit();
 
-            // Update in-memory seats and ticket cache after DB commit
             for (Ticket t : created) {
-                // mark seat as booked
                 for (Seat s : train.getSeats()) {
                     if (s.getSeatNumber().equalsIgnoreCase(t.getSeat().getSeatNumber())) {
                         s.book();
@@ -229,11 +207,6 @@ public class BookingService {
         }
     }
 
-    /**
-     * Transactionally create tickets for a list of usernames (one username per ticket).
-     * The usernames list length determines how many seats to allocate; each ticket will be
-     * assigned to the corresponding username.
-     */
     public List<Ticket> createTicketsForUsernames(List<String> usernames, Train train, String date, String bookedBy) {
         if (usernames == null || usernames.isEmpty()) throw new ValidationException("No usernames provided");
         int numSeats = usernames.size();
@@ -244,7 +217,6 @@ public class BookingService {
             conn = this.db.getConnection();
             conn.setAutoCommit(false);
 
-            // Lock existing active tickets for this train to avoid races
             String lockSql = "SELECT seat_number FROM tickets WHERE train_number = ? AND status = 'ACTIVE' FOR UPDATE";
             List<String> activeSeatNumbers = new ArrayList<>();
             try (PreparedStatement psLock = conn.prepareStatement(lockSql)) {
@@ -254,7 +226,6 @@ public class BookingService {
                 }
             }
 
-            // Compute available seats at DB-authoritative snapshot
             List<Seat> availableSeats = new ArrayList<>();
             for (Seat s : train.getSeats()) {
                 if (!activeSeatNumbers.contains(s.getSeatNumber())) availableSeats.add(s);
@@ -275,7 +246,7 @@ public class BookingService {
                 for (int i = 0; i < numSeats; i++) {
                     String username = usernames.get(i);
                     if (username == null || username.isBlank()) username = "";
-                    String pnr = "TKT" + (new Random().nextInt(90000) + 10000);
+                    String pnr = PnrGenerator.generate();
                     Seat seatToBook = availableSeats.get(i);
 
                     psTicket.setString(1, pnr);
@@ -287,7 +258,6 @@ public class BookingService {
                     psTicket.setString(7, "ACTIVE");
                     psTicket.executeUpdate();
 
-                    // find user id if present
                     Integer userId = null;
                     try {
                         psFind.setString(1, username);
@@ -297,7 +267,6 @@ public class BookingService {
                     } catch (SQLException ignored) {
                     }
 
-                    // history insert (best-effort)
                     try {
                         if (userId != null) psHistory.setInt(1, userId); else psHistory.setNull(1, java.sql.Types.INTEGER);
                         psHistory.setString(2, pnr);
@@ -305,7 +274,6 @@ public class BookingService {
                         psHistory.setString(4, "Booked seat " + seatToBook.getSeatNumber() + " on train " + train.getTrainNumber() + " for user " + username);
                         psHistory.executeUpdate();
                     } catch (SQLException he) {
-                        // fallback to legacy insert with username if history schema older
                         try (PreparedStatement psLegacy = conn.prepareStatement("INSERT INTO user_history(username, action, details) VALUES(?,?,?)")) {
                             psLegacy.setString(1, username);
                             psLegacy.setString(2, "BOOK");
@@ -323,7 +291,6 @@ public class BookingService {
 
             conn.commit();
 
-            // Update in-memory seats and ticket cache after DB commit
             for (Ticket t : created) {
                 for (Seat s : train.getSeats()) {
                     if (s.getSeatNumber().equalsIgnoreCase(t.getSeat().getSeatNumber())) {
@@ -344,73 +311,80 @@ public class BookingService {
             }
         }
     }
+public List<Ticket> findTicketsByPassenger(User passenger) {
+    List<Ticket> passengerTickets = new ArrayList<>();
+    String sqlBookedBy = "SELECT pnr, train_number, seat_number, travel_date, username, status FROM tickets WHERE booked_by = ? AND status = 'ACTIVE'";
 
-    public List<Ticket> findTicketsByPassenger(User passenger) {
-        List<Ticket> passengerTickets = new ArrayList<>();
-        // Prefer to show tickets by who BOOKED them (booked_by). If schema doesn't have booked_by,
-        // fall back to older behavior which shows tickets by passenger username.
-        String sqlBookedBy = "SELECT pnr, train_number, seat_number, travel_date, username FROM tickets WHERE booked_by = ? AND status = 'ACTIVE'";
-        try (Connection c = this.db.getConnection()) {
-            boolean usedBookedBy = true;
-            PreparedStatement ps;
-            try {
-                ps = c.prepareStatement(sqlBookedBy);
-                ps.setString(1, passenger.getUsername());
-            } catch (SQLException se) {
-                // booked_by likely doesn't exist; fall back
-                usedBookedBy = false;
-                String sql = "SELECT pnr, train_number, seat_number, travel_date FROM tickets WHERE username = ? AND status = 'ACTIVE'";
-                ps = c.prepareStatement(sql);
-                ps.setString(1, passenger.getUsername());
-            }
+    try (Connection c = this.db.getConnection()) {
+        boolean usedBookedBy = true;
+        PreparedStatement ps;
+        try {
+            ps = c.prepareStatement(sqlBookedBy);
+            ps.setString(1, passenger.getUsername());
+        } catch (SQLException se) {
+            usedBookedBy = false;
+            String sql = "SELECT pnr, train_number, seat_number, travel_date, status FROM tickets WHERE username = ? AND status = 'ACTIVE'";
+            ps = c.prepareStatement(sql);
+            ps.setString(1, passenger.getUsername());
+        }
 
-            try (PreparedStatement psFinal = ps; ResultSet rs = psFinal.executeQuery()) {
-                while (rs.next()) {
-                    String pnr = rs.getString("pnr");
-                    String trainNumber = rs.getString("train_number");
-                    String seatNumber = rs.getString("seat_number");
-                    String travelDate = rs.getString("travel_date");
-                    String ticketUsername = null;
-                    if (usedBookedBy) {
-                        try {
-                            ticketUsername = rs.getString("username");
-                        } catch (SQLException ignore) {
-                            ticketUsername = passenger.getUsername();
-                        }
-                    } else {
-                        // older schema: ticket row's username is actually passenger username
-                        ticketUsername = passenger.getUsername();
+        try (PreparedStatement psFinal = ps; ResultSet rs = psFinal.executeQuery()) {
+            while (rs.next()) {
+                String pnr = rs.getString("pnr");
+                String trainNumber = rs.getString("train_number");
+                String seatNumber = rs.getString("seat_number");
+                String travelDate = rs.getString("travel_date");
+                String username = usedBookedBy ? rs.getString("username") : passenger.getUsername();
+                String status = rs.getString("status");
+
+                LocalDate travel = null;
+                if (travelDate != null && travelDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                    try {
+                        travel = LocalDate.parse(travelDate, DateTimeFormatter.ISO_LOCAL_DATE);
+                    } catch (DateTimeParseException ex) {
+                        System.out.println("[WARN] Skipping malformed date for ticket " + pnr + ": " + travelDate);
+                        continue;
                     }
+                } else {
+                    System.out.println("[WARN] Ignoring invalid travel_date for ticket " + pnr + ": " + travelDate);
+                    continue;
+                }
 
-                    Train foundTrain = null;
-                    Seat foundSeat = null;
-                    for (Train t : trainService.getAllTrains()) {
-                        if (t.getTrainNumber().equalsIgnoreCase(trainNumber)) {
-                            foundTrain = t;
-                            for (Seat s : t.getSeats()) {
-                                if (s.getSeatNumber().equalsIgnoreCase(seatNumber)) {
-                                    foundSeat = s;
-                                    break;
-                                }
+                if (travel.isBefore(LocalDate.now())) {
+                    continue;
+                }
+
+                Train foundTrain = null;
+                Seat foundSeat = null;
+                for (Train t : trainService.getAllTrains()) {
+                    if (t.getTrainNumber().equalsIgnoreCase(trainNumber)) {
+                        foundTrain = t;
+                        for (Seat s : t.getSeats()) {
+                            if (s.getSeatNumber().equalsIgnoreCase(seatNumber)) {
+                                foundSeat = s;
+                                break;
                             }
-                            break;
                         }
-                    }
-
-                    if (foundTrain != null && foundSeat != null) {
-                        User u = new User(ticketUsername != null ? ticketUsername : passenger.getUsername(), "", Role.PASSENGER);
-                        Ticket tkt = new Ticket(pnr, u, foundTrain, foundSeat, travelDate);
-                        passengerTickets.add(tkt);
-                    } else {
-                        System.out.println("Warning: Could not resolve train/seat for ticket " + pnr);
+                        break;
                     }
                 }
+
+                if (foundTrain != null && foundSeat != null && "ACTIVE".equalsIgnoreCase(status)) {
+                    User u = new User(username, "", Role.PASSENGER);
+                    Ticket tkt = new Ticket(pnr, u, foundTrain, foundSeat, travelDate);
+                    passengerTickets.add(tkt);
+                } else {
+                    System.out.println("Warning: Could not resolve train/seat for active ticket " + pnr);
+                }
             }
-        } catch (SQLException | com.booking.exception.DatabaseException e) {
-            System.out.println("Error loading active tickets from DB: " + e.getMessage());
         }
-        return passengerTickets;
+    } catch (SQLException | com.booking.exception.DatabaseException e) {
+        System.out.println("Error loading active tickets from DB: " + e.getMessage());
     }
+
+    return passengerTickets;
+}
+
 
     public Ticket findTicketByPnr(String pnr) {
         for (Ticket ticket : allTickets) {
@@ -427,19 +401,14 @@ public class BookingService {
             ps.setString(1, ticket.getPnrNumber());
             int updated = ps.executeUpdate();
             if (updated > 0) {
-                // mark seat available in-memory (best-effort)
                 try {
                     ticket.getSeat().unbook();
                 } catch (Exception ignore) {
                 }
-                // Try to remove from in-memory cache; if removal fails it's tolerable because
-                // the authoritative state is in the DB. Return success based on DB update.
                 try {
                     this.allTickets.remove(ticket);
                 } catch (Exception ignore) {
                 }
-
-                // record cancellation in user_history (best-effort)
                 String findId = "SELECT id FROM users WHERE username = ?";
                 Integer userId = null;
                 try (Connection conn2 = this.db.getConnection(); PreparedStatement ps2 = conn2.prepareStatement(findId)) {
@@ -448,7 +417,6 @@ public class BookingService {
                         if (rs2.next()) userId = rs2.getInt("id");
                     }
                 } catch (SQLException | com.booking.exception.DatabaseException e) {
-                    // ignore
                 }
 
                 String insertHistory = "INSERT INTO user_history(user_id, pnr, username, action, details) VALUES(?,?,?,?,?)";
@@ -460,7 +428,6 @@ public class BookingService {
                     ps3.setString(5, "Cancelled ticket PNR " + ticket.getPnrNumber());
                     ps3.executeUpdate();
                 } catch (SQLException | com.booking.exception.DatabaseException e) {
-                    // best-effort
                 }
 
                 return true;
@@ -516,15 +483,87 @@ public class BookingService {
         }
     }
 
-    /**
-     * Load past/cancelled tickets for a given passenger from the database.
-     * A ticket is considered "past" when its travel_date is before today, or
-     * when its status is not 'ACTIVE'.
-     */
-    public List<Ticket> findPastTicketsByPassenger(User passenger) {
-        List<Ticket> past = new ArrayList<>();
-        // Prefer to show past tickets by who booked them (booked_by) — fallback to username if schema missing booked_by
-        String sqlBookedBy = "SELECT pnr, username, train_number, seat_number, travel_date, status FROM tickets WHERE booked_by = ?";
+   public List<Ticket> findPastTicketsByPassenger(User passenger) {
+    List<Ticket> past = new ArrayList<>();
+    String sqlBookedBy = "SELECT pnr, username, train_number, seat_number, travel_date, status FROM tickets WHERE booked_by = ?";
+
+    try (Connection c = this.db.getConnection()) {
+        boolean usedBookedBy = true;
+        PreparedStatement ps;
+        try {
+            ps = c.prepareStatement(sqlBookedBy);
+            ps.setString(1, passenger.getUsername());
+        } catch (SQLException se) {
+            usedBookedBy = false;
+            String sql = "SELECT pnr, username, train_number, seat_number, travel_date, status FROM tickets WHERE username = ?";
+            ps = c.prepareStatement(sql);
+            ps.setString(1, passenger.getUsername());
+        }
+
+        try (PreparedStatement psFinal = ps; ResultSet rs = psFinal.executeQuery()) {
+            while (rs.next()) {
+                String pnr = rs.getString("pnr");
+                String username = rs.getString("username") != null ? rs.getString("username") : passenger.getUsername();
+                String trainNumber = rs.getString("train_number");
+                String seatNumber = rs.getString("seat_number");
+                String travelDate = rs.getString("travel_date");
+                String status = rs.getString("status");
+
+                LocalDate travel = null;
+                boolean isPast = false;
+                if (travelDate != null && travelDate.matches("\\d{4}-\\d{2}-\\d{2}")) {
+                    try {
+                        travel = LocalDate.parse(travelDate, DateTimeFormatter.ISO_LOCAL_DATE);
+                        isPast = travel.isBefore(LocalDate.now());
+                    } catch (DateTimeParseException ex) {
+                        System.out.println("[WARN] Skipping invalid date for past ticket " + pnr + ": " + travelDate);
+                        continue;
+                    }
+                } else {
+                    System.out.println("[WARN] Ignoring non-ISO date for past ticket " + pnr + ": " + travelDate);
+                    continue;
+                }
+
+                    boolean isActive = status != null && status.trim().equalsIgnoreCase("ACTIVE");
+                    boolean isCancelled = status != null && status.trim().equalsIgnoreCase("CANCELLED");
+
+                    // Only include tickets that are active and whose travel date is before today
+                    if (isActive && isPast) {
+                    Train foundTrain = null;
+                    Seat foundSeat = null;
+                    for (Train t : trainService.getAllTrains()) {
+                        if (t.getTrainNumber().equalsIgnoreCase(trainNumber)) {
+                            foundTrain = t;
+                            for (Seat s : t.getSeats()) {
+                                if (s.getSeatNumber().equalsIgnoreCase(seatNumber)) {
+                                    foundSeat = s;
+                                    break;
+                                }
+                            }
+                            break;
+                        }
+                    }
+
+                    if (foundTrain != null && foundSeat != null) {
+                        User u = new User(username, "", Role.PASSENGER);
+                        Ticket tkt = new Ticket(pnr, u, foundTrain, foundSeat, travelDate);
+                        past.add(tkt);
+                    } else {
+                        System.out.println("Warning: Could not resolve train/seat for past ticket " + pnr);
+                    }
+                }
+            }
+        }
+    } catch (SQLException | com.booking.exception.DatabaseException e) {
+        System.out.println("Error loading past tickets from DB: " + e.getMessage());
+    }
+
+    return past;
+}
+    
+    public List<Ticket> findCancelledTicketsByPassenger(User passenger) {
+        List<Ticket> cancelled = new ArrayList<>();
+        String sqlBookedBy = "SELECT pnr, username, train_number, seat_number, travel_date, status FROM tickets WHERE booked_by = ? AND status = 'CANCELLED'";
         try (Connection c = this.db.getConnection()) {
             boolean usedBookedBy = true;
             PreparedStatement ps;
@@ -533,7 +572,7 @@ public class BookingService {
                 ps.setString(1, passenger.getUsername());
             } catch (SQLException se) {
                 usedBookedBy = false;
-                String sql = "SELECT pnr, username, train_number, seat_number, travel_date, status FROM tickets WHERE username = ?";
+                String sql = "SELECT pnr, username, train_number, seat_number, travel_date, status FROM tickets WHERE username = ? AND status = 'CANCELLED'";
                 ps = c.prepareStatement(sql);
                 ps.setString(1, passenger.getUsername());
             }
@@ -542,55 +581,38 @@ public class BookingService {
                 while (rs.next()) {
                     String pnr = rs.getString("pnr");
                     String username = null;
-                    try {
-                        username = rs.getString("username");
-                    } catch (SQLException ignore) {
-                        username = passenger.getUsername();
-                    }
+                    try { username = rs.getString("username"); } catch (SQLException ignore) { username = passenger.getUsername(); }
                     String trainNumber = rs.getString("train_number");
                     String seatNumber = rs.getString("seat_number");
                     String travelDate = rs.getString("travel_date");
-                    String status = rs.getString("status");
 
-                    boolean isPast = false;
-                    if (travelDate != null && !travelDate.isBlank()) {
-                        try {
-                            LocalDate d = LocalDate.parse(travelDate, DateTimeFormatter.ISO_LOCAL_DATE);
-                            if (d.isBefore(LocalDate.now())) isPast = true;
-                        } catch (DateTimeParseException ex) {
-                            // ignore parse errors and treat as not-past here
+                    Train foundTrain = null;
+                    Seat foundSeat = null;
+                    for (Train t : trainService.getAllTrains()) {
+                        if (t.getTrainNumber().equalsIgnoreCase(trainNumber)) {
+                            foundTrain = t;
+                            for (Seat s : t.getSeats()) {
+                                if (s.getSeatNumber().equalsIgnoreCase(seatNumber)) {
+                                    foundSeat = s;
+                                    break;
+                                }
+                            }
+                            break;
                         }
                     }
 
-                    if (!"ACTIVE".equalsIgnoreCase(status) || isPast) {
-                        Train foundTrain = null;
-                        Seat foundSeat = null;
-                        for (Train t : trainService.getAllTrains()) {
-                            if (t.getTrainNumber().equalsIgnoreCase(trainNumber)) {
-                                foundTrain = t;
-                                for (Seat s : t.getSeats()) {
-                                    if (s.getSeatNumber().equalsIgnoreCase(seatNumber)) {
-                                        foundSeat = s;
-                                        break;
-                                    }
-                                }
-                                break;
-                            }
-                        }
-
-                        if (foundTrain != null && foundSeat != null) {
-                            User u = new User(username, "", Role.PASSENGER);
-                            Ticket tkt = new Ticket(pnr, u, foundTrain, foundSeat, travelDate);
-                            past.add(tkt);
-                        } else {
-                            System.out.println("Warning: Could not resolve train/seat for past ticket " + pnr);
-                        }
+                    if (foundTrain != null && foundSeat != null) {
+                        User u = new User(username != null ? username : passenger.getUsername(), "", Role.PASSENGER);
+                        Ticket tkt = new Ticket(pnr, u, foundTrain, foundSeat, travelDate);
+                        cancelled.add(tkt);
+                    } else {
+                        System.out.println("Warning: Could not resolve train/seat for cancelled ticket " + pnr);
                     }
                 }
             }
         } catch (SQLException | com.booking.exception.DatabaseException e) {
-            System.out.println("Error loading past tickets from DB: " + e.getMessage());
+            System.out.println("Error loading cancelled tickets from DB: " + e.getMessage());
         }
-        return past;
+        return cancelled;
     }
 }

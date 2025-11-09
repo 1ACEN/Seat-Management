@@ -8,9 +8,6 @@ import java.sql.Statement;
 import java.sql.ResultSet;
 import com.booking.exception.DatabaseException;
 
-/**
- * Database implementation of {@link DatabaseProvider} that gets configuration from a .env or environment variables.
- */
 public class Database implements DatabaseProvider {
     private final Dotenv dotenv = Dotenv.load();
     private final String url;
@@ -38,10 +35,6 @@ public class Database implements DatabaseProvider {
         }
     }
 
-    /**
-     * Initialize database schema minimal required tables.
-     * Creates `users` table if it doesn't exist.
-     */
     @Override
     public void init() {
         String createUsers = "CREATE TABLE IF NOT EXISTS users ("
@@ -69,9 +62,6 @@ public class Database implements DatabaseProvider {
                 + "created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP"
                 + ") ENGINE=InnoDB;";
 
-        // user_history stores booking-related history only (bookings/cancellations).
-        // username column was previously used for login/logout events; we no longer
-        // record auth events here. Keep user_id and pnr to link history to users/tickets.
         String createUserHistory = "CREATE TABLE IF NOT EXISTS user_history (" +
             "id INT AUTO_INCREMENT PRIMARY KEY," +
             "user_id INT DEFAULT NULL," +
@@ -88,15 +78,12 @@ public class Database implements DatabaseProvider {
             s.executeUpdate(createTickets);
             s.executeUpdate(createUserHistory);
 
-            // Migration-safe checks for older setups: add missing columns/constraints
             try (ResultSet rs = s.executeQuery("SHOW COLUMNS FROM user_history LIKE 'user_id'")) {
                 if (!rs.next()) {
                     s.executeUpdate("ALTER TABLE user_history ADD COLUMN user_id INT DEFAULT NULL");
-                    // add FK constraint (best-effort)
                     try {
                         s.executeUpdate("ALTER TABLE user_history ADD CONSTRAINT fk_user_history_user_id FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE SET NULL");
                     } catch (SQLException ignored) {
-                        // ignore if unable to add FK (permissions/older MySQL)
                     }
                 }
             }
@@ -106,7 +93,6 @@ public class Database implements DatabaseProvider {
                     s.executeUpdate("ALTER TABLE user_history ADD COLUMN pnr VARCHAR(50) DEFAULT NULL");
                 }
             }
-            // Ensure tickets.booked_by exists for tracking who made the booking
             try (ResultSet rs = s.executeQuery("SHOW COLUMNS FROM tickets LIKE 'booked_by'")) {
                 if (!rs.next()) {
                     s.executeUpdate("ALTER TABLE tickets ADD COLUMN booked_by VARCHAR(100) DEFAULT NULL");

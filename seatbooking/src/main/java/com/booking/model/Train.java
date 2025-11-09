@@ -15,15 +15,13 @@ public class Train {
         this.trainNumber = trainNumber;
         this.trainName = trainName;
         this.route = route;
-        
-        // Composition: Train has Seats
+
         this.seats = new ArrayList<>();
         for (int i = 1; i <= totalSeats; i++) {
-            this.seats.add(new Seat("S" + i)); // e.g., "S1", "S2", etc.
+            this.seats.add(new Seat("S" + i)); 
         }
     }
 
-    // --- Getters ---
     public String getTrainNumber() {
         return trainNumber;
     }
@@ -40,9 +38,7 @@ public class Train {
         return seats;
     }
 
-    /**
-     * Returns number of seats that are currently booked on this train.
-     */
+
     public int getBookedSeatCount() {
         int count = 0;
         for (Seat s : seats) {
@@ -51,15 +47,12 @@ public class Train {
         return count;
     }
 
-    /**
-     * Returns number of seats that are currently available on this train.
-     */
+
     public int getAvailableSeatCount() {
         return seats.size() - getBookedSeatCount();
     }
 
-    // --- Helper Method ---
-    // Checks if this train runs between the two stations
+
     public boolean hasStops(String startStation, String endStation) {
         if (startStation == null || endStation == null) return false;
         String start = startStation.trim().toLowerCase();
@@ -75,7 +68,6 @@ public class Train {
             if (norm.equals(end) && endIdx == -1) endIdx = i;
         }
 
-        // Ensure both stops exist and start appears before end (direction-aware)
         return startIdx != -1 && endIdx != -1 && startIdx < endIdx;
     }
 }

@@ -16,7 +16,6 @@ public class Ticket {
         this.travelDate = travelDate;
     }
 
-    // --- Getters ---
     public String getPnrNumber() {
         return pnrNumber;
     }
@@ -37,9 +36,7 @@ public class Ticket {
         return travelDate;
     }
 
-    /**
-     * A helper method to display the ticket details.
-     */
+
     public void displayTicketDetails() {
         System.out.println("---------------------------------");
         System.out.println(" PNR Number: " + pnrNumber);

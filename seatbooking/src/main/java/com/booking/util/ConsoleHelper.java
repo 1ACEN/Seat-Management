@@ -3,9 +3,6 @@ package com.booking.util;
 import java.util.InputMismatchException;
 import java.util.Scanner;
 
-/**
- * Small console helper methods to keep UI code compact and testable.
- */
 public final class ConsoleHelper {
     private ConsoleHelper() { }
 

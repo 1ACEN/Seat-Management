@@ -15,9 +15,7 @@ import java.util.logging.Logger;
 import com.booking.exception.DatabaseException;
 import com.booking.exception.ValidationException;
 
-/**
- * Service for managing trains. Uses a DatabaseProvider (injected) for DB access.
- */
+
 public class TrainService {
 
     private static final Logger LOGGER = Logger.getLogger(TrainService.class.getName());
@@ -29,7 +27,6 @@ public class TrainService {
         this.db = db;
         this.trains = new ArrayList<>();
 
-        // Ensure DB schema exists
         try {
             this.db.init();
         } catch (DatabaseException e) {
@@ -37,11 +34,9 @@ public class TrainService {
             throw e;
         }
 
-        // Load trains from DB. If none exist, populate defaults and reload.
         loadTrainsFromDb();
         if (this.trains.isEmpty()) {
             initializeTrains();
-            // reload to ensure data came from DB insert
             this.trains.clear();
             loadTrainsFromDb();
         }
@@ -79,13 +74,11 @@ public class TrainService {
                 this.trains.add(t);
             }
 
-            // After loading trains, mark seats as booked if there are active tickets
             try (PreparedStatement ps2 = c.prepareStatement("SELECT train_number, seat_number FROM tickets WHERE status = 'ACTIVE'"); ResultSet rs2 = ps2.executeQuery()) {
                 while (rs2.next()) {
                     String tnum = rs2.getString("train_number");
                     String seatNum = rs2.getString("seat_number");
 
-                    // find train in memory
                     for (Train train : this.trains) {
                         if (train.getTrainNumber().equalsIgnoreCase(tnum)) {
                             for (Seat seat : train.getSeats()) {
@@ -139,7 +132,6 @@ public class TrainService {
     }
 
     public boolean addTrain(String trainNumber, String trainName, List<String> route, int totalSeats) {
-        // Normalize route: trim and remove empty tokens
         List<String> normalizedRoute = (route == null) ? new ArrayList<>() : route.stream()
                 .map(String::trim)
                 .filter(s -> !s.isEmpty())
